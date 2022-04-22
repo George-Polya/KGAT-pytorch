@@ -39,11 +39,11 @@ class Aggregator(nn.Module):
 
     def forward(self, ego_embeddings, A_in):
         """
-        ego_embeddings:  (n_users + n_entities, in_dim)
-        A_in:            (n_users + n_entities, n_users + n_entities), torch.sparse.FloatTensor
+        ego_embeddings:  (n_users + n_entities, in_dim) # e_
+        A_in:            (n_users + n_entities, n_users + n_entities), torch.sparse.FloatTensor # pi(h,r,t)
         """
         # Equation (3)
-        side_embeddings = torch.matmul(A_in, ego_embeddings)
+        side_embeddings = torch.matmul(A_in, ego_embeddings) # e_N_h
 
         if self.aggregator_type == 'gcn':
             # Equation (6) & (9)
@@ -89,7 +89,7 @@ class KGAT(nn.Module):
         self.kg_l2loss_lambda = args.kg_l2loss_lambda
         self.cf_l2loss_lambda = args.cf_l2loss_lambda
 
-        self.entity_user_embed = nn.Embedding(self.n_entities + self.n_users, self.embed_dim)
+        self.entity_user_embed = nn.Embedding(self.n_entities + self.n_users, self.embed_dim) # Collarborative Knowledge Graph
         self.relation_embed = nn.Embedding(self.n_relations, self.relation_dim)
         self.trans_M = nn.Parameter(torch.Tensor(self.n_relations, self.embed_dim, self.relation_dim))
 
@@ -115,11 +115,11 @@ class KGAT(nn.Module):
 
 
     def calc_cf_embeddings(self):
-        ego_embed = self.entity_user_embed.weight
+        ego_embed = self.entity_user_embed.weight # e_h
         all_embed = [ego_embed]
 
         for idx, layer in enumerate(self.aggregator_layers):
-            ego_embed = layer(ego_embed, self.A_in)
+            ego_embed = layer(ego_embed, self.A_in) # Equation (9)
             norm_embed = F.normalize(ego_embed, p=2, dim=1)
             all_embed.append(norm_embed)
 
@@ -189,14 +189,14 @@ class KGAT(nn.Module):
         r_embed = self.relation_embed.weight[r_idx]
         W_r = self.trans_M[r_idx]
 
-        h_embed = self.entity_user_embed.weight[h_list]
-        t_embed = self.entity_user_embed.weight[t_list]
+        h_embed = self.entity_user_embed.weight[h_list] # e_h
+        t_embed = self.entity_user_embed.weight[t_list] # e_t
 
         # Equation (4)
         r_mul_h = torch.matmul(h_embed, W_r)
         r_mul_t = torch.matmul(t_embed, W_r)
         v_list = torch.sum(r_mul_t * torch.tanh(r_mul_h + r_embed), dim=1)
-        return v_list
+        return v_list # pi(h,r,t)
 
 
     def update_attention(self, h_list, t_list, r_list, relations):
@@ -222,7 +222,7 @@ class KGAT(nn.Module):
 
         indices = torch.stack([rows, cols])
         shape = self.A_in.shape
-        A_in = torch.sparse.FloatTensor(indices, values, torch.Size(shape))
+        A_in = torch.sparse.FloatTensor(indices, values, torch.Size(shape)) # pi(h,r,t)
 
         # Equation (5)
         A_in = torch.sparse.softmax(A_in.cpu(), dim=1)
