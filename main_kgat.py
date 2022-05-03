@@ -14,6 +14,8 @@ from utils.log_helper import *
 from utils.metrics import *
 from utils.model_helper import *
 from data_loader.loader_kgat import DataLoaderKGAT
+from data_loader.cf_loader import CF_Dataset, CF_DataLoader
+from data_loader.kg_loader import KG_Dataset, KG_DataLoader
 
 
 def evaluate(model, dataloader, Ks, device):
@@ -100,6 +102,12 @@ def train(args):
 
     epoch_list = []
     metrics_list = {k: {'precision': [], 'recall': [], 'ndcg': []} for k in Ks}
+    cf_dataset = CF_Dataset(dataloader, seed=args.seed, phase="train_user_set")
+    cf_dataloader = CF_DataLoader(cf_dataset, batch_size=dataloader.cf_batch_size, 
+                                  shuffle=False, collate_fn=lambda batch:batch, pin_memory=False)
+    
+    kg_dataset = KG_Dataset(dataloader, seed=args.seed, phase="train_user_set")
+    kg_dataloader = KG_DataLoader(kg_dataset, batch_size=dataloader.kg_batch_size, shuffle=False, collate_fn=lambda batch:batch,pin_memory=False)
 
     # train model
     for epoch in range(1, args.n_epoch + 1):
@@ -110,18 +118,18 @@ def train(args):
         time1 = time()
         cf_total_loss = 0
         n_cf_batch = dataloader.n_cf_train // dataloader.cf_batch_size + 1
-
-        for iter in range(1, n_cf_batch + 1):
+        for idx, cf_data in enumerate(cf_dataloader):
+            idx += 1
             time2 = time()
-            cf_batch_user, cf_batch_pos_item, cf_batch_neg_item = dataloader.generate_cf_batch(dataloader.train_user_dict, dataloader.cf_batch_size)
+            cf_batch_user, cf_batch_pos_item, cf_batch_neg_item = cf_data
             cf_batch_user = cf_batch_user.to(device)
             cf_batch_pos_item = cf_batch_pos_item.to(device)
             cf_batch_neg_item = cf_batch_neg_item.to(device)
-
+            
             cf_batch_loss = model(cf_batch_user, cf_batch_pos_item, cf_batch_neg_item, mode='train_cf')
 
             if np.isnan(cf_batch_loss.cpu().detach().numpy()):
-                logging.info('ERROR (CF Training): Epoch {:04d} Iter {:04d} / {:04d} Loss is nan.'.format(epoch, iter, n_cf_batch))
+                logging.info('ERROR (CF Training): Epoch {:04d} Iter {:04d} / {:04d} Loss is nan.'.format(epoch, idx, n_cf_batch))
                 sys.exit()
 
             cf_batch_loss.backward()
@@ -129,8 +137,30 @@ def train(args):
             cf_optimizer.zero_grad()
             cf_total_loss += cf_batch_loss.item()
 
-            if (iter % args.cf_print_every) == 0:
-                logging.info('CF Training: Epoch {:04d} Iter {:04d} / {:04d} | Time {:.1f}s | Iter Loss {:.4f} | Iter Mean Loss {:.4f}'.format(epoch, iter, n_cf_batch, time() - time2, cf_batch_loss.item(), cf_total_loss / iter))
+            if (idx % args.cf_print_every) == 0:
+                logging.info('CF Training: Epoch {:04d} Iter {:04d} / {:04d} | Time {:.1f}s | Iter Loss {:.4f} | Iter Mean Loss {:.4f}'.format(epoch, idx, n_cf_batch, time() - time2, cf_batch_loss.item(), cf_total_loss / idx))
+        
+
+        # for iter in range(1, n_cf_batch + 1):
+        #     time2 = time()
+        #     cf_batch_user, cf_batch_pos_item, cf_batch_neg_item = dataloader.generate_cf_batch(dataloader.train_user_dict, dataloader.cf_batch_size)
+        #     cf_batch_user = cf_batch_user.to(device)
+        #     cf_batch_pos_item = cf_batch_pos_item.to(device)
+        #     cf_batch_neg_item = cf_batch_neg_item.to(device)
+
+        #     cf_batch_loss = model(cf_batch_user, cf_batch_pos_item, cf_batch_neg_item, mode='train_cf')
+
+        #     if np.isnan(cf_batch_loss.cpu().detach().numpy()):
+        #         logging.info('ERROR (CF Training): Epoch {:04d} Iter {:04d} / {:04d} Loss is nan.'.format(epoch, iter, n_cf_batch))
+        #         sys.exit()
+
+        #     cf_batch_loss.backward()
+        #     cf_optimizer.step()
+        #     cf_optimizer.zero_grad()
+        #     cf_total_loss += cf_batch_loss.item()
+
+        #     if (iter % args.cf_print_every) == 0:
+        #         logging.info('CF Training: Epoch {:04d} Iter {:04d} / {:04d} | Time {:.1f}s | Iter Loss {:.4f} | Iter Mean Loss {:.4f}'.format(epoch, iter, n_cf_batch, time() - time2, cf_batch_loss.item(), cf_total_loss / iter))
         logging.info('CF Training: Epoch {:04d} Total Iter {:04d} | Total Time {:.1f}s | Iter Mean Loss {:.4f}'.format(epoch, n_cf_batch, time() - time1, cf_total_loss / n_cf_batch))
 
         # train kg
@@ -138,9 +168,10 @@ def train(args):
         kg_total_loss = 0
         n_kg_batch = dataloader.n_kg_train // dataloader.kg_batch_size + 1
 
-        for iter in range(1, n_kg_batch + 1):
+        for idx, kg_data in enumerate(kg_dataloader):
+            idx+=1
             time4 = time()
-            kg_batch_head, kg_batch_relation, kg_batch_pos_tail, kg_batch_neg_tail = dataloader.generate_kg_batch(dataloader.train_kg_dict, dataloader.kg_batch_size, dataloader.n_users_entities)
+            kg_batch_head, kg_batch_relation, kg_batch_pos_tail, kg_batch_neg_tail = kg_data
             kg_batch_head = kg_batch_head.to(device)
             kg_batch_relation = kg_batch_relation.to(device)
             kg_batch_pos_tail = kg_batch_pos_tail.to(device)
@@ -149,7 +180,7 @@ def train(args):
             kg_batch_loss = model(kg_batch_head, kg_batch_relation, kg_batch_pos_tail, kg_batch_neg_tail, mode='train_kg')
 
             if np.isnan(kg_batch_loss.cpu().detach().numpy()):
-                logging.info('ERROR (KG Training): Epoch {:04d} Iter {:04d} / {:04d} Loss is nan.'.format(epoch, iter, n_kg_batch))
+                logging.info('ERROR (KG Training): Epoch {:04d} Iter {:04d} / {:04d} Loss is nan.'.format(epoch, idx, n_kg_batch))
                 sys.exit()
 
             kg_batch_loss.backward()
@@ -157,8 +188,30 @@ def train(args):
             kg_optimizer.zero_grad()
             kg_total_loss += kg_batch_loss.item()
 
-            if (iter % args.kg_print_every) == 0:
-                logging.info('KG Training: Epoch {:04d} Iter {:04d} / {:04d} | Time {:.1f}s | Iter Loss {:.4f} | Iter Mean Loss {:.4f}'.format(epoch, iter, n_kg_batch, time() - time4, kg_batch_loss.item(), kg_total_loss / iter))
+            if (idx % args.kg_print_every) == 0:
+                logging.info('KG Training: Epoch {:04d} Iter {:04d} / {:04d} | Time {:.1f}s | Iter Loss {:.4f} | Iter Mean Loss {:.4f}'.format(epoch, idx, n_kg_batch, time() - time4, kg_batch_loss.item(), kg_total_loss / idx))
+
+        # for idx in range(1, n_kg_batch + 1):
+        #     time4 = time()
+        #     kg_batch_head, kg_batch_relation, kg_batch_pos_tail, kg_batch_neg_tail = dataloader.generate_kg_batch(dataloader.train_kg_dict, dataloader.kg_batch_size, dataloader.n_users_entities)
+        #     kg_batch_head = kg_batch_head.to(device)
+        #     kg_batch_relation = kg_batch_relation.to(device)
+        #     kg_batch_pos_tail = kg_batch_pos_tail.to(device)
+        #     kg_batch_neg_tail = kg_batch_neg_tail.to(device)
+
+        #     kg_batch_loss = model(kg_batch_head, kg_batch_relation, kg_batch_pos_tail, kg_batch_neg_tail, mode='train_kg')
+
+        #     if np.isnan(kg_batch_loss.cpu().detach().numpy()):
+        #         logging.info('ERROR (KG Training): Epoch {:04d} Iter {:04d} / {:04d} Loss is nan.'.format(epoch, idx, n_kg_batch))
+        #         sys.exit()
+
+        #     kg_batch_loss.backward()
+        #     kg_optimizer.step()
+        #     kg_optimizer.zero_grad()
+        #     kg_total_loss += kg_batch_loss.item()
+
+        #     if (idx % args.kg_print_every) == 0:
+        #         logging.info('KG Training: Epoch {:04d} Iter {:04d} / {:04d} | Time {:.1f}s | Iter Loss {:.4f} | Iter Mean Loss {:.4f}'.format(epoch, idx, n_kg_batch, time() - time4, kg_batch_loss.item(), kg_total_loss / idx))
         logging.info('KG Training: Epoch {:04d} Total Iter {:04d} | Total Time {:.1f}s | Iter Mean Loss {:.4f}'.format(epoch, n_kg_batch, time() - time3, kg_total_loss / n_kg_batch))
 
         # update attention

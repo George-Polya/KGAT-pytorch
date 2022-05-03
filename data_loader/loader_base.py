@@ -15,12 +15,13 @@ class DataLoaderBase(object):
         self.data_name = args.data_name
         self.use_pretrain = args.use_pretrain
         self.pretrain_embedding_dir = args.pretrain_embedding_dir
-
+        
         self.data_dir = os.path.join(args.data_dir, args.data_name)
         self.train_file = os.path.join(self.data_dir, 'train.txt')
         self.test_file = os.path.join(self.data_dir, 'test.txt')
         self.kg_file = os.path.join(self.data_dir, "kg_final.txt")
-
+        
+        # np.random.seed(2020)
         self.cf_train_data, self.train_user_dict = self.load_cf(self.train_file)
         self.cf_test_data, self.test_user_dict = self.load_cf(self.test_file)
         self.statistic_cf()
@@ -95,13 +96,23 @@ class DataLoaderBase(object):
                 sample_neg_items.append(neg_item_id)
         return sample_neg_items
 
-
-    def generate_cf_batch(self, user_dict, batch_size):
+    def get_batch_user(self, user_dict, batch_size):
         exist_users = user_dict.keys()
+        
+        
         if batch_size <= len(exist_users):
+            
             batch_user = random.sample(exist_users, batch_size)
         else:
+            
             batch_user = [random.choice(exist_users) for _ in range(batch_size)]
+
+        return batch_user
+
+
+    def generate_cf_batch(self, user_dict, batch_size):
+  
+        batch_user = self.get_batch_user(user_dict, batch_size)
 
         batch_pos_item, batch_neg_item = [], []
         for u in batch_user:
@@ -148,6 +159,7 @@ class DataLoaderBase(object):
 
 
     def generate_kg_batch(self, kg_dict, batch_size, highest_neg_idx):
+        random.seed(self.args.seed)
         exist_heads = kg_dict.keys()
         if batch_size <= len(exist_heads):
             batch_head = random.sample(exist_heads, batch_size)
@@ -181,5 +193,76 @@ class DataLoaderBase(object):
         assert self.item_pre_embed.shape[0] == self.n_items
         assert self.user_pre_embed.shape[1] == self.args.embed_dim
         assert self.item_pre_embed.shape[1] == self.args.embed_dim
+
+
+
+from typing import Any, Callable, TypeVar, Generic, Sequence, List, Optional
+from torch.utils import data
+
+
+class _BaseDataLoaderIter(object):
+    def __init__(self, loader: data.DataLoader) -> None:
+        self._dataset = loader.dataset
+        self._dataset_kind = loader._dataset_kind
+        self._IterableDataset_len_called = loader._IterableDataset_len_called
+        self._auto_collation = loader._auto_collation
+        self._drop_last = loader.drop_last
+        self._index_sampler = loader._index_sampler
+        self._num_workers = loader.num_workers
+        self._prefetch_factor = loader.prefetch_factor
+        self._pin_memory = loader.pin_memory and torch.cuda.is_available()
+        self._timeout = loader.timeout
+        self._collate_fn = loader.collate_fn
+        self._sampler_iter = iter(self._index_sampler)
+        self._base_seed = torch.empty((), dtype=torch.int64).random_(generator=loader.generator).item()
+        self._persistent_workers = loader.persistent_workers
+        self._num_yielded = 0
+        self._profile_name = "enumerate(DataLoader)#{}.__next__".format(self.__class__.__name__)
+
+    def __iter__(self) -> '_BaseDataLoaderIter':
+        return self
+
+    def _reset(self, loader, first_iter=False):
+        self._sampler_iter = iter(self._index_sampler)
+        self._num_yielded = 0
+        self._IterableDataset_len_called = loader._IterableDataset_len_called
+
+    def _next_index(self):
+        return next(self._sampler_iter)  # may raise StopIteration
+
+    def _next_data(self):
+        raise NotImplementedError
+
+    def __next__(self) -> Any:
+        with torch.autograd.profiler.record_function(self._profile_name):
+            if self._sampler_iter is None:
+                self._reset()
+            data = self._next_data()
+            self._num_yielded += 1
+            # if self._dataset_kind == _CustomDatasetKind.Iterable and \
+            #         self._IterableDataset_len_called is not None and \
+            #         self._num_yielded > self._IterableDataset_len_called:
+            #     warn_msg = ("Length of IterableDataset {} was reported to be {} (when accessing len(dataloader)), but {} "
+            #                 "samples have been fetched. ").format(self._dataset, self._IterableDataset_len_called,
+            #                                                       self._num_yielded)
+            #     if self._num_workers > 0:
+            #         warn_msg += ("For multiprocessing data-loading, this could be caused by not properly configuring the "
+            #                      "IterableDataset replica at each worker. Please see "
+            #                      "https://pytorch.org/docs/stable/data.html#torch.utils.data.IterableDataset for examples.")
+            #     warnings.warn(warn_msg)
+            return data
+
+    next = __next__  # Python 2 compatibility
+
+    def __len__(self) -> int:
+        return len(self._index_sampler)
+
+    def __getstate__(self):
+        # TODO: add limited pickling support for sharing an iterator
+        # across multiple threads for HOGWILD.
+        # Probably the best way to do this is by moving the sample pushing
+        # to a separate thread and then just sharing the data queue
+        # but signalling the end is tricky without a non-blocking API
+        raise NotImplementedError("{} cannot be pickled", self.__class__.__name__)
 
 
