@@ -1,0 +1,1 @@
+python main_kgat.py --data_name naver

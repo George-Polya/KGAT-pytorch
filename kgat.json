@@ -1,0 +1,36 @@
+{
+    "username":"shopping-research-2021",
+    "appname":"kgat",
+    "queue":"shopping-search",
+    "resource" :{
+        "vcores": 1,
+        "gcores": 1,
+        "gpu_names":"V100"
+    },
+    "docker":{
+        "expose_tcp_port":[6006],
+        "client_config":"hdfs://abc/user/shopping-research-2021/config.json",
+        "registry":"reg.navercorp.com",
+        "image":"shp_research_2022/pytorch_1.9:220216",
+        "command":"./run.sh",
+        "args":"",
+        "workdir":"/root/c3_workspace"
+    },
+    "data":{
+        "from_hdfs":[
+            {
+                "hdfs":"hdfs://abc/user/shopping-research-2021/CLIP-KGIN",
+                "input_path" :"data"
+            }                       
+        ],
+        "to_hdfs_root_path":"hdfs://abc/user/shopping-research-2021/kgat-output-root",
+        "to_hdfs":[
+            {
+                "hdfs":"data_out",
+                "output_path" : "trained_model"
+            }
+        ]
+    },
+    "user_dev_workspace_path" :"/home1/irteam/user/wklee/KGAT-pytorch/workspace"
+
+}
