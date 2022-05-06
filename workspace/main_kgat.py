@@ -8,6 +8,10 @@ from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 
+import os 
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
+
+
 from model.KGAT import KGAT
 from parser.parser_kgat import *
 from utils.log_helper import *
