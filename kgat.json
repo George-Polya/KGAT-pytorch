@@ -1,11 +1,11 @@
 {
     "username":"shopping-research-2021",
     "appname":"kgat",
-    "queue":"shopping-search",
+    "queue":"default",
     "resource" :{
         "vcores": 1,
         "gcores": 1,
-        "gpu_names":"V100"
+        "gpu_names":"P40"
     },
     "docker":{
         "expose_tcp_port":[6006],
@@ -19,7 +19,7 @@
     "data":{
         "from_hdfs":[
             {
-                "hdfs":"hdfs://abc/user/shopping-research-2021/CLIP-KGIN",
+                "hdfs":"hdfs://abc/user/shopping-research-2021/CLIP-KGIN/",
                 "input_path" :"data"
             }                       
         ],
@@ -31,6 +31,6 @@
             }
         ]
     },
-    "user_dev_workspace_path" :"/home1/irteam/user/wklee/KGAT-pytorch/workspace"
+    "user_dev_workspace_path" :"/home1/irteam/user/wklee/naver-multimodal-project/KGIN_workspace"
 
 }

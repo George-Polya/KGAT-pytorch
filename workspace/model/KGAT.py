@@ -82,7 +82,7 @@ class KGAT(nn.Module):
         self.relation_dim = args.relation_dim
 
         self.aggregation_type = args.aggregation_type
-        self.conv_dim_list = [args.embed_dim] + eval(args.conv_dim_list)
+        self.conv_dim_list = [args.embed_dim] + eval(args.conv_dim_list) # 
         self.mess_dropout = eval(args.mess_dropout)
         self.n_layers = len(eval(args.conv_dim_list))
 
@@ -105,7 +105,9 @@ class KGAT(nn.Module):
         nn.init.xavier_uniform_(self.trans_M)
 
         self.aggregator_layers = nn.ModuleList()
+        
         for k in range(self.n_layers):
+            # print(f"self.conv_dim_list[{k}]: {self.conv_dim_list[k]}" )
             self.aggregator_layers.append(Aggregator(self.conv_dim_list[k], self.conv_dim_list[k + 1], self.mess_dropout[k], self.aggregation_type))
 
         self.A_in = nn.Parameter(torch.sparse.FloatTensor(self.n_users + self.n_entities, self.n_users + self.n_entities))
@@ -116,12 +118,15 @@ class KGAT(nn.Module):
 
     def calc_cf_embeddings(self):
         ego_embed = self.entity_user_embed.weight # e_h
+        
         all_embed = [ego_embed]
 
         for idx, layer in enumerate(self.aggregator_layers):
             ego_embed = layer(ego_embed, self.A_in) # Equation (9)
+            # print(f"ego_embed.shape: {ego_embed.shape}")
             norm_embed = F.normalize(ego_embed, p=2, dim=1)
             all_embed.append(norm_embed)
+
 
         # Equation (11)
         all_embed = torch.cat(all_embed, dim=1)         # (n_users + n_entities, concat_dim)
@@ -191,6 +196,7 @@ class KGAT(nn.Module):
 
         h_embed = self.entity_user_embed.weight[h_list] # e_h
         t_embed = self.entity_user_embed.weight[t_list] # e_t
+        print(f"h_embed: {h_embed.shape},  t_embed: {t_embed.shape}")
 
         # Equation (4)
         r_mul_h = torch.matmul(h_embed, W_r)
@@ -205,23 +211,26 @@ class KGAT(nn.Module):
         rows = []
         cols = []
         values = []
+        print(f"h_list: {len(h_list)}, t_list: {len(t_list)}, r_list: {len(r_list)}")
 
         for r_idx in relations:
             index_list = torch.where(r_list == r_idx)
             batch_h_list = h_list[index_list]
             batch_t_list = t_list[index_list]
-
+            
             batch_v_list = self.update_attention_batch(batch_h_list, batch_t_list, r_idx)
-            rows.append(batch_h_list)
-            cols.append(batch_t_list)
+            rows.append(batch_h_list) 
+            cols.append(batch_t_list) # e_t
             values.append(batch_v_list)
 
-        rows = torch.cat(rows)
-        cols = torch.cat(cols)
-        values = torch.cat(values)
-
+        rows = torch.cat(rows) # len(n_kg_train)
+        cols = torch.cat(cols) # len(n_kg_train)
+        values = torch.cat(values) # len(n_kg_train)
+        
         indices = torch.stack([rows, cols])
+        
         shape = self.A_in.shape
+        # print(f"values : {values}")
         A_in = torch.sparse.FloatTensor(indices, values, torch.Size(shape)) # pi(h,r,t)
 
         # Equation (5)

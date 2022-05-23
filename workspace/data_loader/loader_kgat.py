@@ -94,8 +94,8 @@ class DataLoaderKGAT(DataLoaderBase):
     def create_adjacency_dict(self):
         self.adjacency_dict = {}
         for r, ht_list in self.train_relation_dict.items():
-            rows = [e[0] for e in ht_list]
-            cols = [e[1] for e in ht_list]
+            rows = [e[0] for e in ht_list] # head
+            cols = [e[1] for e in ht_list] # tail
             vals = [1] * len(rows)
             adj = sp.coo_matrix((vals, (rows, cols)), shape=(self.n_users_entities, self.n_users_entities))
             self.adjacency_dict[r] = adj
