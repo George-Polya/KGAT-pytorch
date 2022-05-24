@@ -196,7 +196,7 @@ class KGAT(nn.Module):
 
         h_embed = self.entity_user_embed.weight[h_list] # e_h
         t_embed = self.entity_user_embed.weight[t_list] # e_t
-        print(f"h_embed: {h_embed.shape},  t_embed: {t_embed.shape}")
+        # print(f"h_embed: {h_embed.shape},  t_embed: {t_embed.shape}")
 
         # Equation (4)
         r_mul_h = torch.matmul(h_embed, W_r)
@@ -211,7 +211,7 @@ class KGAT(nn.Module):
         rows = []
         cols = []
         values = []
-        print(f"h_list: {len(h_list)}, t_list: {len(t_list)}, r_list: {len(r_list)}")
+        # print(f"h_list: {len(h_list)}, t_list: {len(t_list)}, r_list: {len(r_list)}")
 
         for r_idx in relations:
             index_list = torch.where(r_list == r_idx)

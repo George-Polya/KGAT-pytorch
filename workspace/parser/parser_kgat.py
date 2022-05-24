@@ -56,7 +56,7 @@ def parse_kgat_args():
                         help='Iter interval of printing CF loss.')
     parser.add_argument('--kg_print_every', type=int, default=1,
                         help='Iter interval of printing KG loss.')
-    parser.add_argument('--evaluate_every', type=int, default=10,
+    parser.add_argument('--evaluate_every', type=int, default=1,
                         help='Epoch interval of evaluating CF.')
 
     parser.add_argument('--Ks', nargs='?', default='[20, 40, 60, 80, 100]',

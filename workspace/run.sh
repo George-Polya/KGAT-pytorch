@@ -1,2 +1,2 @@
-python main_kgat.py --data_name movie-1m
+python main_kgat.py --data_name ml-1m
 

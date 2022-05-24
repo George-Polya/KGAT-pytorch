@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 import os 
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
 
 from model.KGAT import KGAT
